@@ -32,7 +32,41 @@ $ make build
 
 Using the provider
 ----------------------
-## Fill in for each provider
+
+Example DNS records:
+
+```
+resource "cloudflare_record" "cf_record" {
+  domain = "example.com"
+  name   = "subdomain"
+  value  = "otherhost.example.com"
+  type   = "CNAME"
+  ttl    = "3600"
+}
+
+resource "cloudflare_record" "mx_cf_record" {
+  domain = "example.com"
+  name   = "example.com"
+  value  = "mxhost.example.com"
+  priority = "10"
+  type   = "MX"
+  ttl    = "3600"
+}
+
+```
+
+Format for import key: "<domain>/<fqdn>/<record_type>" (ex. "example.com/subdomain.example.com/CNAME")
+
+MX records are handled slightly differently, as they require an additional record index: "<domain>/<fqdn>/MX/<record_index>"
+
+Import command example:
+
+```
+terraform import cloudflare_record.cf_record "example.com/subdomain.example.com/A"
+terraform import cloudflare_record.mx_cf_record[0] "example.com/example.com/MX/0"
+terraform import cloudflare_record.mx_cf_record[1] "example.com/example.com/MX/1"
+```
+
 
 Developing the Provider
 ---------------------------
