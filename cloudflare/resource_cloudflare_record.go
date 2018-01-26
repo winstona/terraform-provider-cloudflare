@@ -3,6 +3,8 @@ package cloudflare
 import (
 	"fmt"
 	"log"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/cloudflare/cloudflare-go"
@@ -218,6 +220,22 @@ func resourceCloudFlareRecordDelete(d *schema.ResourceData, meta interface{}) er
 func resourceCloudFlareRecordImport(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 	client := meta.(*cloudflare.API)
 	id := d.Id()
+	re := regexp.MustCompile("^(.*?)/(.*?)/(.*?)(/(.*?))?$")
+	matches := re.FindAllStringSubmatch(id, -1)
+
+	log.Printf("matches: %+v", matches)
+	match_domain := matches[0][1]
+	match_record := matches[0][2]
+	match_type := matches[0][3]
+	match_index := 0
+	if match_type == "MX" {
+		parsed_index, err := strconv.ParseInt(matches[0][5], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to parse index for MX record type, ensure id follows <domain>/<hostname>/<type>/<index>. Error: %s", err)
+		}
+		match_index = int(parsed_index)
+		log.Printf("[INFO] using matchindex: %v", match_index)
+	}
 
 	// Get list of Zones to check for record in
 	zones, err := client.ListZones()
@@ -228,30 +246,56 @@ func resourceCloudFlareRecordImport(d *schema.ResourceData, meta interface{}) ([
 
 	// Itterate through Zones to find zone with record for given id
 	found := false
+	results := make([]*schema.ResourceData, 0)
 	for _, zone := range zones {
-		log.Printf("[INFO] Checking Zone: %s", zone.Name)
-		record, err := client.DNSRecord(zone.ID, id)
-		if err == nil {
-			found = true
-			log.Printf("[INFO] Found record: %s", record.Name)
-			name := strings.TrimSuffix(record.Name, "."+zone.Name)
-			d.Set("domain", zone.Name)
-			d.Set("hostname", record.Name)
-			d.Set("name", name)
-			d.Set("priority", record.Priority)
-			d.Set("proxied", record.Proxied)
-			d.Set("ttl", record.TTL)
-			d.Set("type", record.Type)
-			d.Set("value", record.Content)
-			d.Set("zone_id", zone.ID)
+		log.Printf("[INFO] Checking Zone: %s (%s)", zone.Name, zone.ID)
+		if zone.Name == match_domain {
+
+			dnsRecords, err := client.DNSRecords(zone.ID, cloudflare.DNSRecord{Type: match_type})
+			if err != nil {
+				log.Printf("[ERROR] got error when getting all records: %+v", dnsRecords)
+			}
+			//dnsRecords, _ := client.DNSRecords(zone.ID, cloudflare.DNSRecord{})
+
+			log.Printf("[INFO] Record count: %v", len(dnsRecords))
+			for _, record := range dnsRecords {
+				log.Printf("[INFO] Checking record: %v: %v", record.Name, record.Type)
+				if record.Name == match_record && record.Type == match_type {
+					found = true
+					resource := resourceCloudFlareRecord()
+					d := resource.Data(nil)
+					d.SetType("cloudflare_record")
+
+					d.SetId(record.ID)
+
+					log.Printf("[INFO] Found record: %+v", record)
+					name := strings.TrimSuffix(record.Name, "."+zone.Name)
+					d.Set("domain", zone.Name)
+					d.Set("hostname", record.Name)
+					d.Set("name", name)
+					d.Set("priority", record.Priority)
+					d.Set("proxied", record.Proxied)
+					d.Set("ttl", record.TTL)
+					d.Set("type", record.Type)
+					d.Set("value", record.Content)
+					d.Set("zone_id", zone.ID)
+					results = append(results, d)
+
+				}
+
+			}
+
 			break
 		}
+
 	}
 	if !found {
 		return nil, fmt.Errorf("Unable to find record for ID: %s. Checked %d zones", id, len(zones))
 	}
 
-	results := make([]*schema.ResourceData, 0)
-	results = append(results, d)
-	return results, nil
+	if len(results) < match_index+1 {
+		return nil, fmt.Errorf("Unable to find record index %s for ID: %s. Checked %d zones", match_index, id, len(zones))
+	}
+
+	return []*schema.ResourceData{results[match_index]}, nil
 }
