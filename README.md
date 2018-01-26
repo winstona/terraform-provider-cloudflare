@@ -52,12 +52,11 @@ resource "cloudflare_record" "mx_cf_record" {
   type   = "MX"
   ttl    = "3600"
 }
-
 ```
 
-Format for import key: "<domain>/<fqdn>/<record_type>" (ex. "example.com/subdomain.example.com/CNAME")
+Format for import key: "&lt;domain&gt;/&lt;fqdn&gt;/&lt;record_type&gt;" (ex. "example.com/subdomain.example.com/CNAME")
 
-MX records are handled slightly differently, as they require an additional record index: "<domain>/<fqdn>/MX/<record_index>"
+MX records are handled slightly differently, as they require an additional record index: "&lt;domain&gt;/&lt;fqdn&gt;/MX/&lt;record_index&gt;"
 
 Import command example:
 
