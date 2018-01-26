@@ -223,7 +223,6 @@ func resourceCloudFlareRecordImport(d *schema.ResourceData, meta interface{}) ([
 	re := regexp.MustCompile("^(.*?)/(.*?)/(.*?)(/(.*?))?$")
 	matches := re.FindAllStringSubmatch(id, -1)
 
-	log.Printf("matches: %+v", matches)
 	match_domain := matches[0][1]
 	match_record := matches[0][2]
 	match_type := matches[0][3]
@@ -255,9 +254,7 @@ func resourceCloudFlareRecordImport(d *schema.ResourceData, meta interface{}) ([
 			if err != nil {
 				log.Printf("[ERROR] got error when getting all records: %+v", dnsRecords)
 			}
-			//dnsRecords, _ := client.DNSRecords(zone.ID, cloudflare.DNSRecord{})
 
-			log.Printf("[INFO] Record count: %v", len(dnsRecords))
 			for _, record := range dnsRecords {
 				log.Printf("[INFO] Checking record: %v: %v", record.Name, record.Type)
 				if record.Name == match_record && record.Type == match_type {
